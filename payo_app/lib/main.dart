@@ -34,15 +34,6 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
 //  https://github.com/geordyvcErasmus/flutter_sms
 
-
-
-
-   getIndianRupee(value) {
-    final regexp = RegExp("[Rs|IN][Rs\\s|IN.](\\d+[.](\\d\\d|\\d))");
-    final match = regexp.firstMatch(value);
-    return double.tryParse(match.group(1));
-  }
-
   @override
   Widget build(BuildContext context) {
      return HomeOnlyPiePage();

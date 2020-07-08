@@ -1,7 +1,12 @@
 import 'package:charts_flutter/flutter.dart' as charts;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:payo_app/model/DataModel.dart';
 import 'package:sms_maintained/sms.dart';
+
+import 'daily_bargroup.dart';
+import 'data_table.dart';
+import 'global.dart';
 
 class HomeOnlyPiePage extends StatefulWidget {
   final Widget child;
@@ -13,11 +18,13 @@ class HomeOnlyPiePage extends StatefulWidget {
 
 class _HomeOnlyPiePageState extends State<HomeOnlyPiePage> {
   bool isLoad = true;
+  int isStatus = 0;
 
+  List<FinalDataModel> _finalList = [];
   List<DataModel> data = [];
   List<charts.Series<Task, String>> _seriesPieData;
 
-  void _incrementCounter([bool today=false]) async {
+  void dataCalculation([int status = 0]) async {
     data.clear();
     SmsQuery query = new SmsQuery();
     List<SmsMessage> messages = await query.getAllSms;
@@ -27,21 +34,23 @@ class _HomeOnlyPiePageState extends State<HomeOnlyPiePage> {
       if (str.contains('credited ')) {
         data.add(DataModel(
             id: element.id,
-            credited: getIndianRupee(str),
+            credited: Global.getIndianRupee(str),
             dateTime: element.date));
       } else if (str.contains('debited ')) {
         data.add(DataModel(
             id: element.id,
-            debited: getIndianRupee(str),
+            debited: Global.getIndianRupee(str),
             dateTime: element.date));
       }
     });
 
     List<DataModel> short = [];
 
-    if(today){
+    if (status == 0) {
       short = data.where((l) => l.dateTime.day >= DateTime.now().day).toList();
-    }else{
+    } else if (status == 3) {
+      short = data.where((l) => l.dateTime.day <= DateTime.now().day).toList();
+    } else {
       short = data.where((l) => l.dateTime.day <= DateTime.now().day).toList();
     }
 
@@ -58,29 +67,48 @@ class _HomeOnlyPiePageState extends State<HomeOnlyPiePage> {
     print("totalCredit : $totalCredit");
     print("totalDebit: $totalDebit");
 
+    var sum = totalCredit + totalDebit;
+
+    short.forEach((element) {
+      _finalList.add(FinalDataModel(element.id,
+          '${element.dateTime.day}-${element.dateTime.month}-${element.dateTime.year}',
+          totalCredit.toString(), totalDebit.toString(), sum.toString()));
+    });
+
     setState(() {
       isLoad = false;
+      isStatus = status;
       _seriesPieData = List<charts.Series<Task, String>>();
       _generateData(totalCredit, totalDebit);
     });
   }
 
+  void _todayHanler() {
+    dataCalculation(0);
+  }
+
   void _dialyHanler() {
-    _incrementCounter(true);
+    dataCalculation(1);
   }
 
   void _monthly() {
-    _incrementCounter(false);
+    dataCalculation(2);
+  }
+
+  void _summaryList() {
+    dataCalculation(3);
   }
 
   _generateData(totalCredit, totalDebit) {
-    var totalRs=totalCredit+totalDebit;
-    var cr=totalCredit*100/totalRs;
-    var dr=totalDebit*100/totalRs;
+    var totalRs = totalCredit + totalDebit;
+    var cr = totalCredit * 100 / totalRs;
+    var dr = totalDebit * 100 / totalRs;
     var piedata = [
-       Task('Total income Rs. $totalCredit', double.tryParse(cr.toStringAsExponential(3)), Color(0xff109618)),
-       Task('Total expenses Rs. $totalDebit', double.tryParse(dr.toStringAsExponential(3)), Color(0xffdc3912)),
-       Task('Total Rs .$totalRs',0.0, Color(0xfffdbe19)),
+      Task('Total income Rs. $totalCredit',
+          double.tryParse(cr.toStringAsExponential(3)), Color(0xff109618)),
+      Task('Total expenses Rs. $totalDebit',
+          double.tryParse(dr.toStringAsExponential(3)), Color(0xffdc3912)),
+      Task('Total Rs .$totalRs', 0.0, Color(0xfffdbe19)),
     ];
 
     _seriesPieData.add(
@@ -96,11 +124,9 @@ class _HomeOnlyPiePageState extends State<HomeOnlyPiePage> {
     );
   }
 
-
-
   @override
   void initState() {
-    _incrementCounter();
+    dataCalculation();
     super.initState();
   }
 
@@ -114,10 +140,9 @@ class _HomeOnlyPiePageState extends State<HomeOnlyPiePage> {
           title: Text('Payo'),
         ),
         floatingActionButton: FloatingActionButton(
-          onPressed: _incrementCounter,
+          onPressed: dataCalculation,
           child: Icon(Icons.refresh),
         ),
-
         body: isLoad
             ? Container(
                 child: Center(
@@ -126,64 +151,73 @@ class _HomeOnlyPiePageState extends State<HomeOnlyPiePage> {
               )
             : Column(
                 children: [
-                  SizedBox(height: 20.0,),
+                  SizedBox(
+                    height: 20.0,
+                  ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      SizedBox(
-                          width: 140,
-                          child: RaisedButton(
-                            onPressed: _dialyHanler,
-                            child: Text('Daily'),
-                          )),
-                      SizedBox(
-                          width: 140,
-                          child: RaisedButton(
-                            onPressed: _monthly,
-                            child: Text('Monthly'),
-                          ))
+                      RaisedButton(
+                        onPressed: _todayHanler,
+                        child: Text('Today'),
+                      ),
+                      RaisedButton(
+                        onPressed: _dialyHanler,
+                        child: Text('Daily'),
+                      ),
+                      RaisedButton(
+                        onPressed: _monthly,
+                        child: Text('Monthly'),
+                      ),
+                      RaisedButton(
+                        onPressed: _summaryList,
+                        child: Text('Summary'),
+                      )
                     ],
                   ),
-
-                  SizedBox(height: 10.0,),
-                  Expanded(
-                    child: charts.PieChart(
-                      _seriesPieData,
-                      animate: true,
-                      animationDuration: Duration(seconds: 2),
-                      defaultRenderer: charts.ArcRendererConfig(
-                          arcWidth: 100,
-                          arcRendererDecorators: [
-                            charts.ArcLabelDecorator(
-                                labelPosition: charts.ArcLabelPosition.auto)
-                          ]),
-                      behaviors: [
-                        new charts.DatumLegend(
-                          outsideJustification:
-                              charts.OutsideJustification.start,
-                          horizontalFirst: false,
-                          desiredMaxRows: 12,
-                          cellPadding:
-                              new EdgeInsets.only(left: 44.0, top: 14.0),
-                          entryTextStyle: charts.TextStyleSpec(
-                              color: charts.MaterialPalette.purple.shadeDefault,
-                              fontFamily: 'Georgia',
-                              fontSize: 16),
-                        )
-                      ],
-                    ),
+                  SizedBox(
+                    height: 10.0,
                   ),
+                  isStatus == 0
+                      ? pieDraw()
+                      : isStatus == 1
+                          ? DailyBases()
+                          : isStatus == 2
+                              ? pieDraw()
+                              : isStatus == 3
+                                  ? DataListDraw(_finalList)
+                                  : pieDraw()
                 ],
               ),
       ),
     );
   }
 
-  getIndianRupee(value) {
-    final regexp = RegExp("[Rs|IN][Rs\\s|IN.](\\d+[.](\\d\\d|\\d))");
-    final match = regexp.firstMatch(value);
-    return double.tryParse(match.group(1));
+  Widget pieDraw() {
+    return Expanded(
+      child: charts.PieChart(
+        _seriesPieData,
+        animate: true,
+        animationDuration: Duration(seconds: 2),
+        defaultRenderer:
+            charts.ArcRendererConfig(arcWidth: 100, arcRendererDecorators: [
+          charts.ArcLabelDecorator(labelPosition: charts.ArcLabelPosition.auto)
+        ]),
+        behaviors: [
+          new charts.DatumLegend(
+            outsideJustification: charts.OutsideJustification.start,
+            horizontalFirst: false,
+            desiredMaxRows: 12,
+            cellPadding: new EdgeInsets.only(left: 44.0, top: 14.0),
+            entryTextStyle: charts.TextStyleSpec(
+                color: charts.MaterialPalette.purple.shadeDefault,
+                fontFamily: 'Georgia',
+                fontSize: 16),
+          )
+        ],
+      ),
+    );
   }
 }
 
